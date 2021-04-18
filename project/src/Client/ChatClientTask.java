@@ -6,11 +6,11 @@ import java.util.List;
 
 public final class ChatClientTask implements Runnable
 {
-    private final Client client;
+    private final ChatClient client;
     private final List<String> messages;
     private final int waitTime;
 
-    public ChatClientTask(Client client, List<String> messages, int waitTime)
+    public ChatClientTask(ChatClient client, List<String> messages, int waitTime)
     {
         this.client = client;
         this.messages = messages;
@@ -24,7 +24,9 @@ public final class ChatClientTask implements Runnable
 
         for(var msg : messages)
         {
-            client.send(Request.SEND_MESSAGE + msg);
+            var message = new Message(Request.SEND_MESSAGE, client.id, msg);
+
+            client.send(message.toString());
             try { Thread.sleep(waitTime); }
             catch (InterruptedException ignored) { }
         }

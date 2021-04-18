@@ -8,7 +8,7 @@ import java.nio.channels.*;
 import java.time.LocalDateTime;
 import java.util.*;
 
-public class Server extends Thread
+public final class Server extends Thread
 {
     private Selector selector;
     private ServerSocketChannel serverSocketChannel;
@@ -120,9 +120,9 @@ public class Server extends Thread
             return;
 
         var processedMessage = String.format("%s: %s%n", user.loginName, message);
-        serverLogs.add(processedMessage);
+        serverLogs.add(processedMessage + "\n");
         for (var activeUsers : activeSessions.keySet())
-            activeUsers.addMessage(processedMessage);
+            activeUsers.addMessage(processedMessage + "\n");
     }
 
     private void loginUser(String name, SocketAddress host)
@@ -190,8 +190,8 @@ public class Server extends Thread
         System.out.println("Server: Server stopped");
     }
 
-    String getServerLog()
+    public String getServerLog()
     {
-        throw new NullPointerException("Method is not implemented");
+        return serverLogs.stream().reduce((res, message) -> res += message).get();
     }
 }
