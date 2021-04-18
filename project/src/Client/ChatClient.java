@@ -19,49 +19,61 @@ public class ChatClient
     public ChatClient(String host, int port, String id)
     {
         this.id = id;
-        inetSocketAddress = InetSocketAddress.createUnresolved(host, port);
+        inetSocketAddress = new InetSocketAddress(host, port);
     }
 
     public void login()
     {
+        //fixme debug
+        System.out.println("Login");
         var message = new Message(Request.LOGIN, id, "");
+        //fixme debug
+        System.out.println(message);
         send(message.toString());
     }
 
     public void logout()
     {
+        //fixme debug
+        System.out.println("Logout");
         var message = new Message(Request.LOGOUT, id, "");
         send(message.toString());
     }
 
     public String getChatView()
     {
-        try
-        {
-            var socketChannel = SocketChannel.open(inetSocketAddress);
-            var buffer = ByteBuffer.allocate(Integer.MAX_VALUE);
-
-            socketChannel.read(buffer);
-            socketChannel.close();
-
-            clientView = Objects.requireNonNullElse(new String(buffer.asCharBuffer().array()), "");
-        }
-        catch (IOException e) { throw new NullPointerException("Method is not implemented yet"); }
+        //fixme debug
+        System.out.println("Chat View");
+        var message = new Message(Request.GET_MESSAGES, id, "");
+        send(message.toString());
 
         return clientView;
     }
 
     public void send(String req)
     {
+        //fixme debug
+        System.out.println("Send");
         try
         {
-            var socketChannel = SocketChannel.open(inetSocketAddress);
+            var socketChannel = SocketChannel.open();
+            socketChannel.connect(inetSocketAddress);
             var buffer = ByteBuffer.wrap(req.getBytes());
+
             socketChannel.write(buffer);
 
+            if(req.contains(Request.GET_MESSAGES.toString()))
+            {
+                buffer.clear();
+                socketChannel.read(buffer);
+
+                clientView = Objects.requireNonNullElse(buffer.asCharBuffer().toString(), "");
+            }
+
+            socketChannel.finishConnect();
             socketChannel.close();
         }
-        catch (IOException e) { throw new NullPointerException("Method is not implemented yet"); }
+        catch (IOException e) { e.printStackTrace(); }
     }
 
     public static ChatClientTask create(ChatClient c, List<String> msgs, int wait)

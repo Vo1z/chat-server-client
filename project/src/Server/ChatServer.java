@@ -8,7 +8,7 @@ import java.nio.channels.*;
 import java.time.LocalDateTime;
 import java.util.*;
 
-public final class Server extends Thread
+public final class ChatServer extends Thread
 {
     private Selector selector;
     private ServerSocketChannel serverSocketChannel;
@@ -16,13 +16,33 @@ public final class Server extends Thread
     private Map<User, SocketAddress> activeSessions = new HashMap<>();
     private List<String> serverLogs = new LinkedList<>();
 
-    public final String host;
-    public final int port;
+    public final InetSocketAddress inetServerAddress;
 
-    public Server(String host, int port)
+    public ChatServer(String host, int port)
     {
-        this.host = host;
-        this.port = port;
+        inetServerAddress = new InetSocketAddress(host, port);
+    }
+
+    public void startServer()
+    {
+        //fixme debug
+        System.out.println("Server is listening on " + inetServerAddress.getHostString() + ":" + inetServerAddress.getPort());
+
+        try
+        {
+            selector = Selector.open();
+            serverSocketChannel = ServerSocketChannel.open();
+            serverSocketChannel.bind(inetServerAddress);
+            serverSocketChannel.configureBlocking(false);
+            serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
+        }
+        catch (IOException ioException)
+        {
+            ioException.printStackTrace();
+        }
+
+        isWorking = true;
+        start();
     }
 
     @Override
@@ -32,55 +52,58 @@ public final class Server extends Thread
         {
             try
             {
+//                var channelsReady = selector.selectNow();
+                if(selector.selectNow() < 1)
+                    continue;
 
-                var selectorKeys = selector.keys();
-                var keyIter = selectorKeys.iterator();
+                var keyIter = selector.selectedKeys().iterator();
 
                 while (keyIter.hasNext())
                 {
                     var event = keyIter.next();
-
                     keyIter.remove();
 
                     if (event.isAcceptable())
                     {
+                        //fixme debug
+                        System.out.println("Socket accept operation was invoked");
                         var socketChannel = serverSocketChannel.accept();
                         socketChannel.configureBlocking(false);
 
-                        socketChannel.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+                        socketChannel.register(selector, SelectionKey.OP_READ);
                         continue;
                     }
                     if (event.isReadable())
                     {
+                        //fixme debug
+                        System.out.println("Readable operation was invoked");
                         var socketChannel = (SocketChannel) event.channel();
-                        var buffer = ByteBuffer.allocate(Integer.MAX_VALUE);
+                        var buffer = ByteBuffer.allocate(10000);
 
                         socketChannel.read(buffer);
 
-                        var inputMessage = new String(buffer.asCharBuffer().array());
+                        //fixme debug
+                        System.out.println(buffer.array().length);
+
+                        var inputMessage = "";
+                        buffer.flip();
+
+                        while (buffer.)
+                        {
+
+                        }
+
+                        //fixme debug
+                        System.out.println("Message is: " + inputMessage);
 
                         processRequest(inputMessage, socketChannel);
 
-                        continue;
-                    }
-                    if (event.isWritable())
-                    {
-                        var socketChannel = (SocketChannel) event.channel();
-                        var user = getUserByHost(socketChannel.getRemoteAddress());
-
-                        if (user == null)
-                            return;
-
-                        var message = user.getMessagesForUser().stream()
-                                .reduce((res, userMessage) -> res += userMessage)
-                                .get();
-                        var messageBuffer = ByteBuffer.wrap(message.getBytes());
-
-                        socketChannel.write(messageBuffer);
+                        socketChannel.finishConnect();
+                        socketChannel.close();
                     }
                 }
             }
-            catch (IOException | NoSuchElementException ignored) { }
+            catch (IOException | NoSuchElementException ignored) {ignored.printStackTrace(); }
         }
     }
 
@@ -96,18 +119,39 @@ public final class Server extends Thread
             {
                 if(req == Request.LOGIN)
                 {
+                    //fixme debug
+                    System.out.println("Login operation was invoked");
                     loginUser(inputMessage.replaceAll(req.toString(), ""), socketChannel.getRemoteAddress());
                     return;
                 }
                 if(req == Request.LOGOUT)
                 {
+                    //fixme debug
+                    System.out.println("Logout operation was invoked");
                     logoutUser(inputMessage.replaceAll(req.toString(), ""));
                     return;
                 }
                 if(req == Request.SEND_MESSAGE)
                 {
+                    //fixme debug
+                    System.out.println("Send operation was invoked");
                     confirmMessage(inputMessage, socketChannel.getRemoteAddress());
                     return;
+                }
+                if(req == Request.GET_MESSAGES)
+                {
+                    //fixme debug
+                    System.out.println("Get operation was invoked");
+                    var user = getUserByHost(socketChannel.getRemoteAddress());
+                    if (user == null)
+                        return;
+
+                    var message = user.getMessagesForUser().stream()
+                            .reduce((res, userMessage) -> res += userMessage)
+                            .get();
+                    var messageBuffer = ByteBuffer.wrap(message.getBytes());
+
+                    socketChannel.write(messageBuffer);
                 }
             }
         }
@@ -120,6 +164,8 @@ public final class Server extends Thread
             return;
 
         var processedMessage = String.format("%s: %s%n", user.loginName, message);
+        //fixme debug
+        System.out.println(processedMessage);
         serverLogs.add(processedMessage + "\n");
         for (var activeUsers : activeSessions.keySet())
             activeUsers.addMessage(processedMessage + "\n");
@@ -128,6 +174,8 @@ public final class Server extends Thread
     private void loginUser(String name, SocketAddress host)
     {
         var user = new User(name, LocalDateTime.now());
+        //fixme debug
+        System.out.println("User " + user.loginName + " was connected");
         activeSessions.put(user, host);
         serverLogs.add(name + " joined the conversation");
     }
@@ -163,25 +211,6 @@ public final class Server extends Thread
         return activeSessions.keySet().stream()
                 .map(user -> user.loginName)
                 .anyMatch(loginName -> loginName.equals(name));
-    }
-
-    public void startServer()
-    {
-        try
-        {
-            selector = Selector.open();
-            serverSocketChannel = ServerSocketChannel.open();
-            serverSocketChannel.bind(new InetSocketAddress(host, port));
-            serverSocketChannel.configureBlocking(false);
-            serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
-        }
-        catch (IOException ioException)
-        {
-            ioException.printStackTrace();
-        }
-
-        isWorking = true;
-        start();
     }
 
     public void stopServer()
