@@ -19,7 +19,7 @@ public class ChatClient
     public ChatClient(String host, int port, String id)
     {
         this.id = id;
-        inetSocketAddress = InetSocketAddress.createUnresolved(host, port);
+        inetSocketAddress = new InetSocketAddress(host, port);
     }
 
     public void login()
@@ -36,17 +36,8 @@ public class ChatClient
 
     public String getChatView()
     {
-        try
-        {
-            var socketChannel = SocketChannel.open(inetSocketAddress);
-            var buffer = ByteBuffer.allocate(Integer.MAX_VALUE);
-
-            socketChannel.read(buffer);
-            socketChannel.close();
-
-            clientView = Objects.requireNonNullElse(new String(buffer.asCharBuffer().array()), "");
-        }
-        catch (IOException e) { throw new NullPointerException("Method is not implemented yet"); }
+        var message = new Message(Request.GET_MESSAGES, id, "");
+        send(message.toString());
 
         return clientView;
     }
@@ -55,13 +46,27 @@ public class ChatClient
     {
         try
         {
-            var socketChannel = SocketChannel.open(inetSocketAddress);
+            var socketChannel = SocketChannel.open();
+            socketChannel.connect(inetSocketAddress);
             var buffer = ByteBuffer.wrap(req.getBytes());
+
             socketChannel.write(buffer);
 
+            if(req.contains(Request.GET_MESSAGES.toString()))
+            {
+                //fixme debug
+                System.out.println("Waiting for respond...");
+
+                buffer.clear();
+                socketChannel.read(buffer);
+
+                clientView += Objects.requireNonNullElse(new String(buffer.array(), 0, buffer.limit()), "");
+            }
+
+            socketChannel.finishConnect();
             socketChannel.close();
         }
-        catch (IOException e) { throw new NullPointerException("Method is not implemented yet"); }
+        catch (IOException e) { e.printStackTrace(); }
     }
 
     public static ChatClientTask create(ChatClient c, List<String> msgs, int wait)

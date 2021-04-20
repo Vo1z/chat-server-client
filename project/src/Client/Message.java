@@ -20,6 +20,6 @@ public class Message
     @Override
     public String toString()
     {
-        return String.format("%s\n%s\n%s%n", request.toString(), id, content);
+        return String.format("%s\n%s\n%s", request.toString(), id, content).trim();
     }
 }
