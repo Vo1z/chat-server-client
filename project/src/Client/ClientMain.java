@@ -11,6 +11,9 @@ public class ClientMain
         client.login();
         var message = new Message(Request.SEND_MESSAGE, client.id, "Hello");
         client.send(message.toString());
+
+        System.out.println(client.getChatView());
+
         client.logout();
     }
 }

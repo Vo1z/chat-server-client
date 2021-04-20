@@ -24,26 +24,18 @@ public class ChatClient
 
     public void login()
     {
-        //fixme debug
-        System.out.println("Login");
         var message = new Message(Request.LOGIN, id, "");
-        //fixme debug
-        System.out.println(message);
         send(message.toString());
     }
 
     public void logout()
     {
-        //fixme debug
-        System.out.println("Logout");
         var message = new Message(Request.LOGOUT, id, "");
         send(message.toString());
     }
 
     public String getChatView()
     {
-        //fixme debug
-        System.out.println("Chat View");
         var message = new Message(Request.GET_MESSAGES, id, "");
         send(message.toString());
 
@@ -52,8 +44,6 @@ public class ChatClient
 
     public void send(String req)
     {
-        //fixme debug
-        System.out.println("Send");
         try
         {
             var socketChannel = SocketChannel.open();
@@ -64,10 +54,13 @@ public class ChatClient
 
             if(req.contains(Request.GET_MESSAGES.toString()))
             {
+                //fixme debug
+                System.out.println("Waiting for respond...");
+
                 buffer.clear();
                 socketChannel.read(buffer);
 
-                clientView = Objects.requireNonNullElse(buffer.asCharBuffer().toString(), "");
+                clientView += Objects.requireNonNullElse(new String(buffer.array(), 0, buffer.limit()), "");
             }
 
             socketChannel.finishConnect();

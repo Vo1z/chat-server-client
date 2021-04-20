@@ -7,6 +7,10 @@ public class ServerMain
         var server = new ChatServer("192.168.0.106", 167);
 
         server.startServer();
-        server.join();
+
+        Thread.sleep(10000);
+
+        server.stopServer();
+        server.getServerLog();
     }
 }
