@@ -57,7 +57,7 @@ public class ChatClient
                 //fixme debug
                 System.out.println("Waiting for respond...");
 
-                buffer.clear();
+                buffer = ByteBuffer.allocate(10000);
                 socketChannel.read(buffer);
 
                 clientView += Objects.requireNonNullElse(new String(buffer.array(), 0, buffer.limit()), "");

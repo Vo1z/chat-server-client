@@ -11,6 +11,6 @@ public class ServerMain
         Thread.sleep(10000);
 
         server.stopServer();
-        server.getServerLog();
+        System.out.println(server.getServerLog());
     }
 }

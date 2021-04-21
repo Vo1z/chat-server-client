@@ -36,10 +36,7 @@ public final class ChatServer extends Thread
             serverSocketChannel.configureBlocking(false);
             serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
         }
-        catch (IOException ioException)
-        {
-            ioException.printStackTrace();
-        }
+        catch (IOException ioException) { ioException.printStackTrace(); }
 
         isWorking = true;
         start();
@@ -76,8 +73,12 @@ public final class ChatServer extends Thread
                         var buffer = ByteBuffer.allocate(10000);
 
                         socketChannel.read(buffer);
+                        buffer.flip();
 
                         var inputMessage = new String(buffer.array(), 0, buffer.limit());
+
+                        //fixme
+                        //System.out.println("Readable message: " + inputMessage);
 
                         processRequest(inputMessage, socketChannel);
 
@@ -123,10 +124,12 @@ public final class ChatServer extends Thread
                     if (user == null)
                         throw new NullPointerException();
 
-                    //fixme debug
-                    System.out.println("GET_MESSAGE request for user " + user.loginName);
                     var message = user.getMessagesForUser().stream()
-                            .reduce("", (res, userMessage) -> res + userMessage);
+                            .reduce("", (res, userMessage) -> res + userMessage + "\n");
+
+                    //fixme debug
+                    System.out.println("Returning message to user " + user.loginName + ": " + message);
+
                     var messageBuffer = ByteBuffer.wrap(message.getBytes());
 
                     socketChannel.write(messageBuffer);
@@ -143,12 +146,12 @@ public final class ChatServer extends Thread
         if (user == null)
             throw new NullPointerException();
 
-        var processedMessage = String.format("%s: %s", user.loginName, message);
-        //fixme debug
-        System.out.println(processedMessage);
-        serverLogs.add(processedMessage + "\n");
+        message = message.replaceAll(Request.SEND_MESSAGE.toString(), "").replaceAll(user.loginName, "").trim();
+        var processedMessage = String.format("%s: %s\n", user.loginName, message);
+
+        serverLogs.add(processedMessage);
         for (var activeUsers : activeSessions.keySet())
-            activeUsers.addMessage(processedMessage + "\n");
+            activeUsers.addMessage(processedMessage);
     }
 
     private void loginUser(String name, SocketAddress host)
@@ -156,9 +159,6 @@ public final class ChatServer extends Thread
         name = name.replaceAll("\n|\s", "");
         var user = new User(name, LocalDateTime.now());
         var messageToAdd = name + " joined the conversation";
-
-        //fixme debug
-        System.out.println("User " + user.loginName + " was connected: " + host.toString());
 
         activeSessions.put(user, host.toString().replaceAll(":\\d+|\\\\", ""));
         serverLogs.add(messageToAdd);
@@ -178,10 +178,6 @@ public final class ChatServer extends Thread
 
         activeSessions.remove(suchUserInSession);
         serverLogs.add(messageToAdd);
-
-        //fixme debug
-        System.out.println("User " + suchUserInSession.loginName + " was disconnected: " + suchUserInSession.toString());
-
 
         for (var activeUser : activeSessions.keySet())
             activeUser.addMessage(messageToAdd);
@@ -212,11 +208,12 @@ public final class ChatServer extends Thread
     public void stopServer()
     {
         isWorking = false;
-        System.out.println("Server: Server stopped");
+        serverLogs.add("Server: Server stopped");
     }
 
     public String getServerLog()
     {
-        return serverLogs.stream().reduce("", (res, message) -> res + message);
+        return serverLogs.stream()
+                .reduce("", (tmp, element) -> tmp + element + "\n");
     }
 }
