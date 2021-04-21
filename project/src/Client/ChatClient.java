@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.util.List;
 import java.util.Objects;
 
 public class ChatClient
@@ -39,7 +38,7 @@ public class ChatClient
         var message = new Message(Request.GET_MESSAGES, id, "");
         send(message.toString());
 
-        return clientView;
+        return "=== " + id + " chat view\n" + clientView;
     }
 
     public void send(String req)
@@ -54,9 +53,6 @@ public class ChatClient
 
             if(req.contains(Request.GET_MESSAGES.toString()))
             {
-                //fixme debug
-                System.out.println("Waiting for respond...");
-
                 buffer = ByteBuffer.allocate(10000);
                 socketChannel.read(buffer);
 
@@ -66,11 +62,6 @@ public class ChatClient
             socketChannel.finishConnect();
             socketChannel.close();
         }
-        catch (IOException e) { e.printStackTrace(); }
-    }
-
-    public static ChatClientTask create(ChatClient c, List<String> msgs, int wait)
-    {
-        return new ChatClientTask(c, msgs, wait);
+        catch (IOException e) { clientView += e.getMessage(); }
     }
 }

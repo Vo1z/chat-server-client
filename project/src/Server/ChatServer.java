@@ -13,8 +13,8 @@ public final class ChatServer extends Thread
     private Selector selector;
     private ServerSocketChannel serverSocketChannel;
     private boolean isWorking = false;
-    private final Map<User, String> activeSessions = new HashMap<>();
-    private final List<String> serverLogs = new ArrayList<>();
+    private final List<User> activeSessions = new ArrayList<>();
+    private final List<String> serverLogs = new LinkedList<>();
 
     public final InetSocketAddress inetServerAddress;
 
@@ -25,9 +25,7 @@ public final class ChatServer extends Thread
 
     public void startServer()
     {
-        //fixme debug
-        System.out.println("Server is listening on " + inetServerAddress.getHostString() + ":" + inetServerAddress.getPort());
-
+        serverLogs.add(LocalDateTime.now() + " " + "Server was started\n");
         try
         {
             selector = Selector.open();
@@ -36,7 +34,7 @@ public final class ChatServer extends Thread
             serverSocketChannel.configureBlocking(false);
             serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
         }
-        catch (IOException ioException) { ioException.printStackTrace(); }
+        catch (IOException ioException) { serverLogs.add(ioException.getMessage()); }
 
         isWorking = true;
         start();
@@ -77,9 +75,6 @@ public final class ChatServer extends Thread
 
                         var inputMessage = new String(buffer.array(), 0, buffer.limit());
 
-                        //fixme
-                        //System.out.println("Readable message: " + inputMessage);
-
                         processRequest(inputMessage, socketChannel);
 
                         socketChannel.finishConnect();
@@ -87,7 +82,7 @@ public final class ChatServer extends Thread
                     }
                 }
             }
-            catch (IOException | NoSuchElementException ignored) {ignored.printStackTrace(); }
+            catch (IOException | NoSuchElementException ex) {serverLogs.add(ex.getMessage()); }
         }
     }
 
@@ -114,106 +109,90 @@ public final class ChatServer extends Thread
                 }
                 if(req == Request.SEND_MESSAGE)
                 {
-                    confirmMessage(inputMessage, socketChannel.getRemoteAddress().toString().replaceAll(":\\d+|\\\\", ""));
+                    confirmMessage(inputMessage, (String)inputMessage.lines().toArray()[1]);
                     return;
                 }
                 if(req == Request.GET_MESSAGES)
                 {
-                    var user = getUserByHost(socketChannel.getRemoteAddress().toString().replaceAll(":\\d+|\\\\", ""));
-
-                    if (user == null)
-                        throw new NullPointerException();
-
-                    var message = user.getMessagesForUser().stream()
-                            .reduce("", (res, userMessage) -> res + userMessage + "\n");
-
-                    //fixme debug
-                    System.out.println("Returning message to user " + user.loginName + ": " + message);
-
-                    var messageBuffer = ByteBuffer.wrap(message.getBytes());
-
-                    socketChannel.write(messageBuffer);
-
+                    sendView(userName, socketChannel);
                     return;
                 }
             }
         }
     }
 
-    private void confirmMessage(String message, String host)
+    private void sendView(String name, SocketChannel socketChannel) throws IOException
     {
-        var user = getUserByHost(host);
+        var user = getUserByName(name);
+
+        if(user == null)
+            return;
+
+        var message = user.getMessagesForUser().stream()
+                .reduce("", (res, userMessage) -> res + userMessage);
+        var messageBuffer = ByteBuffer.wrap(message.getBytes());
+
+        socketChannel.write(messageBuffer);
+    }
+
+    private void confirmMessage(String message, String name)
+    {
+        var user = getUserByName(name);
         if (user == null)
             throw new NullPointerException();
 
         message = message.replaceAll(Request.SEND_MESSAGE.toString(), "").replaceAll(user.loginName, "").trim();
         var processedMessage = String.format("%s: %s\n", user.loginName, message);
 
-        serverLogs.add(processedMessage);
-        for (var activeUsers : activeSessions.keySet())
+        serverLogs.add(LocalDateTime.now() + " " + processedMessage);
+        for (var activeUsers : activeSessions)
             activeUsers.addMessage(processedMessage);
     }
 
     private void loginUser(String name, SocketAddress host)
     {
         name = name.replaceAll("\n|\s", "");
-        var user = new User(name, LocalDateTime.now());
-        var messageToAdd = name + " joined the conversation";
+        var user = new User(name);
+        var messageToAdd = name + " joined the conversation\n";
 
-        activeSessions.put(user, host.toString().replaceAll(":\\d+|\\\\", ""));
-        serverLogs.add(messageToAdd);
+        activeSessions.add(user);
+        serverLogs.add(LocalDateTime.now() + " " + messageToAdd);
 
-        for (var activeUser : activeSessions.keySet())
+        for (var activeUser : activeSessions)
             activeUser.addMessage(messageToAdd);
     }
 
     private void logoutUser(String name)
     {
-        if (!isUserLoggedIn(name))
+        var user = getUserByName(name);
+        if(user == null)
             return;
 
-        var messageToAdd = name + " left the conversation";
-        var suchUserInSession = activeSessions.keySet().stream().filter(user -> user.loginName.equals(name))
-                .findFirst().get();
-
-        activeSessions.remove(suchUserInSession);
-        serverLogs.add(messageToAdd);
-
-        for (var activeUser : activeSessions.keySet())
+        var messageToAdd = name + " left the conversation\n";
+        for (var activeUser : activeSessions)
             activeUser.addMessage(messageToAdd);
+
+        serverLogs.add(LocalDateTime.now() + " " + messageToAdd);
     }
 
-    private User getUserByHost(String host)
+    private User getUserByName(String name)
     {
-        for(var activeUser : activeSessions.keySet())
-        {
-            if (activeSessions.get(activeUser).equals(host))
+        for(var activeUser : activeSessions)
+            if (activeUser.loginName.equals(name))
                 return activeUser;
-        }
 
-        throw new NullPointerException();
-        //return null;
-    }
-
-    private boolean isUserLoggedIn(String name)
-    {
-        if (name == null || name.length() == 0)
-            throw new NullPointerException();
-
-        return activeSessions.keySet().stream()
-                .map(user -> user.loginName)
-                .anyMatch(loginName -> loginName.equals(name));
+        return null;
     }
 
     public void stopServer()
     {
         isWorking = false;
-        serverLogs.add("Server: Server stopped");
+        serverLogs.add(LocalDateTime.now() + " " + "Server: Server stopped");
     }
 
     public String getServerLog()
     {
-        return serverLogs.stream()
-                .reduce("", (tmp, element) -> tmp + element + "\n");
+        return "=== Server log ===\n" + serverLogs.stream()
+                .reduce("", (tmp, element) -> tmp + element);
     }
 }
